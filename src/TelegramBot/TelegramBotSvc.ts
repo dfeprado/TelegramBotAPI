@@ -32,7 +32,6 @@ export class TelegramBotSvc {
     private getUpdatesUrl: string;
     private sendMessageUrl: string;
     private updateOffset = 0;
-    private knownUsers = new Set<number>();
     private httpClient: HTTPS
     private newChatObserver: NewChatObserver
 
@@ -40,7 +39,7 @@ export class TelegramBotSvc {
         this.baseUrl = `${TELEGRAM_BOT_API_URL_ENDPOINT}bot${token}`;
         this.getUpdatesUrl = `${this.baseUrl}/getUpdates?limit=10`;
         this.sendMessageUrl = `${this.baseUrl}/sendMessage`;
-
+        
         this.httpClient = httpClient
         this.newChatObserver = newChatObserver
 
@@ -83,8 +82,6 @@ export class TelegramBotSvc {
                 continue;
 
             this.newChatObserver.onNewChat(update.message.chat)
-            // this.knownUsers.add(update.message.chat.id);
-            // console.log(`New user ${update.message.chat.id}`);
         }
 
         this.setUpdateOffset(content);
@@ -98,18 +95,20 @@ export class TelegramBotSvc {
         this.updateOffset = content.result[content.result.length - 1].update_id + 1;
     }
 
-    sendToAllUsers(text: string) {
-        for (const user of this.knownUsers) {
-            const message = JSON.stringify(SendMessage(user, text));
-            this.httpClient.post(
-                this.sendMessageUrl, 
-                {'Content-Type': 'application/json', 'Content-Length': message.length}, 
-                message
-            ).then(res => {
-                    console.log(`Message to user ${user}: ${res}`)
-            }).catch(e => {
-                    console.error(`Error while sending message to ${user}: ${e}`)
-            })
+    sendMessage(chatID: number, message: string) {
+        const postBody = JSON.stringify(SendMessage(chatID, message));
+
+        const postHeaders = {
+            'Content-Type': 'application/json', 
+            'Content-Length': postBody.length
         }
+
+        this.httpClient.post(this.sendMessageUrl, postHeaders, postBody)
+            .then(res => {
+                console.log(`Message to chatID ${chatID}: ${res}`)
+            })
+            .catch(e => {
+                console.error(`Error while sending message to chatID ${chatID}: ${e}`)
+            })
     }
 }
