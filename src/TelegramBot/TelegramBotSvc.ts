@@ -1,4 +1,5 @@
 import HTTPS from './AbstractDependencies/HTTPS';
+import NewChatObserver from './AbstractDependencies/NewChatObserver';
 import { GetUpdateResponse } from './Types/GetUpdateResponse';
 import { Message } from './Types/Message';
 
@@ -33,12 +34,15 @@ export class TelegramBotSvc {
     private updateOffset = 0;
     private knownUsers = new Set<number>();
     private httpClient: HTTPS
+    private newChatObserver: NewChatObserver
 
-    constructor(token: string, httpClient: HTTPS) {
+    constructor(token: string, httpClient: HTTPS, newChatObserver: NewChatObserver) {
         this.baseUrl = `${TELEGRAM_BOT_API_URL_ENDPOINT}bot${token}`;
         this.getUpdatesUrl = `${this.baseUrl}/getUpdates?limit=10`;
         this.sendMessageUrl = `${this.baseUrl}/sendMessage`;
+
         this.httpClient = httpClient
+        this.newChatObserver = newChatObserver
 
         this.getUpdates();
     }
@@ -78,8 +82,9 @@ export class TelegramBotSvc {
             if (!update.message || !this.isStartMessage(update.message))
                 continue;
 
-            this.knownUsers.add(update.message.chat.id);
-            console.log(`New user ${update.message.chat.id}`);
+            this.newChatObserver.onNewChat(update.message.chat)
+            // this.knownUsers.add(update.message.chat.id);
+            // console.log(`New user ${update.message.chat.id}`);
         }
 
         this.setUpdateOffset(content);

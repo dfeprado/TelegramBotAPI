@@ -1,4 +1,6 @@
+import { Chat } from "./Chat";
+
 export interface Message {
-    chat: { id: number; };
+    chat: Chat;
     text: string;
 }
