@@ -1,9 +1,30 @@
-import https from 'https';
+import HTTPS from './AbstractDependencies/HTTPS';
 import { GetUpdateResponse } from './Types/GetUpdateResponse';
 import { Message } from './Types/Message';
-import { newMessage } from './Types/SendMessage';
 
 const TELEGRAM_BOT_API_URL_ENDPOINT = 'https://api.telegram.org/';
+
+/**
+ * Sending message type
+ */
+interface SendMessage {
+    chat_id: number;
+    text: string;
+}
+
+/**
+ * Sending message type builder
+ * @param chatID Desired chat destination
+ * @param text Desired message content
+ * @returns SendMessage type
+ */
+function SendMessage(chatID: number, text: string): SendMessage {
+    const r = {} as SendMessage
+    r.chat_id = chatID
+    r.text = text
+
+    return r
+}
 
 export class TelegramBotSvc {
     private baseUrl: string;
@@ -11,33 +32,27 @@ export class TelegramBotSvc {
     private sendMessageUrl: string;
     private updateOffset = 0;
     private knownUsers = new Set<number>();
+    private httpClient: HTTPS
 
-    constructor(token: string) {
+    constructor(token: string, httpClient: HTTPS) {
         this.baseUrl = `${TELEGRAM_BOT_API_URL_ENDPOINT}bot${token}`;
         this.getUpdatesUrl = `${this.baseUrl}/getUpdates?limit=10`;
         this.sendMessageUrl = `${this.baseUrl}/sendMessage`;
+        this.httpClient = httpClient
 
         this.getUpdates();
     }
 
-    private getUpdates() {
+    private async getUpdates() {
         const offsetedUrl = this.updateOffset ? `${this.getUpdatesUrl}&offset=${this.updateOffset}` : this.getUpdatesUrl;
-        https.get(offsetedUrl, (res) => {
-            let responseBody = '';
-
-            res.on('data', (chunk) => {
-                responseBody += chunk;
-            });
-
-            res.on('end', () => {
-                this.parse(responseBody);
-                this.getUpdates(); // TBot API uses long polling. So, we need to call a new request every time last one have finished.
-            });
-
-            res.on('error', (e) => {
-                console.error(`Error while getting Telegram updates: ${e}`);
-            });
-        });
+        try {
+            const res = await this.httpClient.get(offsetedUrl)
+            this.parse(res.content)
+            this.getUpdates() // TBot API uses long polling. So, we need to call a new request at every end of last request
+        }
+        catch (e) {
+            console.error(`Error while getting Telegram updates: ${e}`)
+        }
     }
 
     private parse(update: string) {
@@ -80,31 +95,16 @@ export class TelegramBotSvc {
 
     sendToAllUsers(text: string) {
         for (const user of this.knownUsers) {
-            const message = JSON.stringify(newMessage(user, text));
-            const options = {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Content-Length': message.length
-                }
-            };
-            const req = https.request(this.sendMessageUrl, options, (res) => {
-                let responseBody = '';
-                res.on('data', (chunk) => {
-                    responseBody += chunk;
-                });
-
-                res.on('end', () => {
-                    console.log(`Message to ${user}: ${responseBody}`);
-                });
-
-                res.on('error', (e) => {
-                    console.error(`Error while sending message to ${user}: ${e}`);
-                });
-            });
-
-            req.write(message);
-            req.end();
+            const message = JSON.stringify(SendMessage(user, text));
+            this.httpClient.post(
+                this.sendMessageUrl, 
+                {'Content-Type': 'application/json', 'Content-Length': message.length}, 
+                message
+            ).then(res => {
+                    console.log(`Message to user ${user}: ${res}`)
+            }).catch(e => {
+                    console.error(`Error while sending message to ${user}: ${e}`)
+            })
         }
     }
 }

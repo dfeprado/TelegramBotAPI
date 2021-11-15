@@ -1,4 +1,5 @@
 import { TelegramBotSvc } from './TelegramBot/TelegramBotSvc'
+import NodeHTTPS from './Utils/NodeHTTPS'
 
 function main() {
     const token = process.env.TBOT_TOKEN || ''
@@ -7,7 +8,7 @@ function main() {
         return
     }
 
-    const tbot = new TelegramBotSvc(token)
+    const tbot = new TelegramBotSvc(token, new NodeHTTPS())
 
     setTimeout(() => tbot.sendToAllUsers('Hello, World!'), 3000)
 }
